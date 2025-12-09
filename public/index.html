@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Таймер обратного отсчёта</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        form {
+            margin-bottom: 20px;
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px;
+        }
+        #timers {
+            margin-top: 20px;
+        }
+        .timer {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 5px;
+        }
+        .time-left {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .expired {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Таймер обратного отсчёта</h1>
+
+    <form id="timerForm">
+        <input type="text" id="title" placeholder="Название таймера" required>
+        <input type="number" id="seconds" placeholder="Секунды" min="1" required>
+        <button type="submit">Создать таймер</button>
+    </form>
+
+    <h2>Активные таймеры</h2>
+    <div id="timers"></div>
+
+    <script>
+        const API_URL = '/api/timers';
+ 
+        const activeIntervals = {};
+
+        async function loadTimers() {
+            try {
+                const res = await fetch(API_URL);
+                const timers = await res.json();
+                const container = document.getElementById('timers');
+                container.innerHTML = '';
+                
+                timers.forEach(timer => {
+                    const div = document.createElement('div');
+                    div.className = 'timer';
+                    div.id = `timer-${timer.id}`;
+                    
+                    div.innerHTML = `
+                        <div>
+                            <strong>${timer.title}</strong>
+                            <div class="time-left" id="time-${timer.id}">${timer.seconds} сек</div>
+                            <div>Создан: ${new Date(timer.createdAt).toLocaleTimeString()}</div>
+                        </div>
+                        <div>
+                            <button onclick="startTimer(${timer.id}, ${timer.seconds})">Старт</button>
+                            <button onclick="pauseTimer(${timer.id})">Пауза</button>
+                            <button onclick="resetTimer(${timer.id}, ${timer.seconds})">Сброс</button>
+                            <button onclick="deleteTimer(${timer.id})">Удалить</button>
+                        </div>
+                    `;
+                    container.appendChild(div);
+                });
+            } catch (error) {
+                console.error('Ошибка загрузки таймеров:', error);
+            }
+        }
+
+      
+        function startTimer(id, totalSeconds) {
+           
+            if (activeIntervals[id]) {
+                clearInterval(activeIntervals[id]);
+            }
+            
+            const timerElement = document.getElementById(`time-${id}`);
+            let timeLeft = parseInt(timerElement.textContent) || totalSeconds;
+
+            activeIntervals[id] = setInterval(() => {
+                timeLeft--;
+                timerElement.textContent = `${timeLeft} сек`;
+                
+                if (timeLeft <= 10) {
+                    timerElement.style.color = "orange";
+                }
+                
+                if (timeLeft <= 0) {
+                    clearInterval(activeIntervals[id]);
+                    timerElement.textContent = "Время вышло!";
+                    timerElement.className = "expired";
+                    delete activeIntervals[id];
+                    
+                    
+                }
+            }, 1000);
+        }
+
+        function pauseTimer(id) {
+            if (activeIntervals[id]) {
+                clearInterval(activeIntervals[id]);
+                delete activeIntervals[id];
+                document.getElementById(`time-${id}`).style.color = "gray";
+            }
+        }
+
+        
+        function resetTimer(id, totalSeconds) {
+            pauseTimer(id);
+            const timerElement = document.getElementById(`time-${id}`);
+            timerElement.textContent = `${totalSeconds} сек`;
+            timerElement.style.color = "#2c3e50";
+            timerElement.className = "time-left";
+        }
+
+       
+        async function deleteTimer(id) {
+            if (!confirm('Удалить таймер?')) return;
+            
+            pauseTimer(id); 
+            
+            try {
+                await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+                loadTimers(); 
+            } catch (error) {
+                console.error('Ошибка удаления таймера:', error);
+            }
+        }
+
+      
+        document.getElementById('timerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('title').value;
+            const seconds = document.getElementById('seconds').value;
+
+            if (!title || !seconds) {
+                alert('Заполните все поля');
+                return;
+            }
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, seconds }),
+                });
+                
+                if (response.ok) {
+                    
+                    document.getElementById('title').value = '';
+                    document.getElementById('seconds').value = '';
+                   
+                    loadTimers();
+                }
+            } catch (error) {
+                console.error('Ошибка создания таймера:', error);
+            }
+        });
+
+        
+        loadTimers();
+        
+       
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                document.querySelectorAll('.timer').forEach(timerDiv => {
+                    const id = timerDiv.id.replace('timer-', '');
+                    const timeElement = document.getElementById(`time-${id}`);
+                    const totalSeconds = parseInt(timeElement.textContent);
+                    
+                });
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
